@@ -31,7 +31,7 @@ namespace Clients.Model
         public string? Email { get; set; }
         //
         /// <summary>
-        /// adding feature
+        /// adding feature 2
         /// </summary>
 
         //[Required(ErrorMessage = "Gender is required")]
