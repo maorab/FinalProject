@@ -1,0 +1,428 @@
+﻿@page "/List"
+
+@using Model
+@using Clients.Blazor.Services
+@inject ClientsService ClientsService
+@inject CityService CityService
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations;
+<link href="ListStyle.css" rel="stylesheet" />
+@if (clients != null)
+{
+    <div class="container">
+        <div class="header">
+            <h1>Client Management</h1>
+        </div>
+
+        <div class="filter-container">
+            <h1>Filter:</h1><br />
+            <input type="text" class="filter-input" placeholder="Filter By FirstName..." @bind="filterFirstName" @oninput=" OnFilterByFirstNameChanged" />
+            <input type="text" class="filter-input" placeholder="Filter By LastName..." @bind="filterLastName" @oninput=" OnFilterByLastNameChanged" />
+            <input type="text" class="filter-input" placeholder="Filter By Gender..." @bind="filterGender" @oninput=" OnFilterByGenderChanged" />
+            <input type="number" class="filter-input" placeholder="Filter By Age..." value="@filterAge.ToString()" @oninput=" OnFilterByAgeChanged" />
+            <span class="reset-button" onclick="@ClearFilter">Reset 🗑</span>
+        </div>
+
+        <div class="clients-list">
+            <h2>Client List</h2>
+            <ul>
+                @foreach (Client curclient in filteredclients)
+                {
+                    <li class="client-item">
+                        <div class="client-details">
+                            <strong>First Name:</strong> @curclient.FirstName<br />
+                            <strong>Last Name:</strong> @curclient.LastName<br />
+                            <strong>Age:</strong> @curclient.Age<br />
+                            <strong>Gender:</strong> @curclient.Gender<br />
+                            <strong>Email:</strong> @curclient.Email <br />
+                            <strong>City:</strong> @curclient.City.Name
+                        </div>
+                        <div class="client-actions">
+                            <button @onclick="() => EditClient(curclient)" class="btn-edit">Edit</button>
+                            <button @onclick="() => ConfirmDelete(curclient)" class="btn-delete">Delete</button>
+                        </div>
+                    </li>
+                }
+            </ul>
+            <h3>Total Clients: @filteredclients.Count</h3>
+            <h3>Total Cities: @cities.Count</h3>
+        </div>
+
+        <div class="edit-form">
+            <h1>Edit/Add Client</h1>
+            <EditForm Model="editClient" OnValidSubmit="BtnClick">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <label>First Name:</label>
+                    <InputText @bind-Value="editClient.FirstName" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Last Name:</label>
+                    <InputText @bind-Value="editClient.LastName" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Birth Year:</label>
+                    <InputNumber @bind-Value="editClient.BirthYear" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Gender:</label>
+                    <InputText @bind-Value="editClient.Gender" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <InputText @bind-Value="editClient.Email" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>City:</label>
+                    <InputSelect @bind-Value="selectedCityId" class="long">
+                        <option value="-1" disabled selected>Select a city</option>
+                        @if (cities != null)
+                        {
+                            @foreach (var city in cities)
+                            {
+                                <option value="@city.Id">@city.Name</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+                <button type="submit" class="btn-submit">@btnText</button><br /><br />
+                @foreach (var city in cities) if (city.Id == selectedCityId) editClient.City = city;
+                <ValidationSummary />
+                @for (int i = 0; i < moreValidations.Count; i++)
+                {
+                    <ul class="validation-message-list">
+                        <li class="validation-message">@moreValidations[i]</li>
+                    </ul>
+                }
+            </EditForm>
+            <h1>Edit/Add City</h1>
+            <button @onclick="() => ChangeisShowCityModal(true)">+</button><br />
+        </div>
+        @if (isShowCityModal)
+        {
+            <div class="edit-form">
+                <h3>@(IsCityEditMode ? "Edit City" : "Add New City") <button @onclick="() => ChangeisShowCityModal(false)">❌</button></h3>
+                <EditForm Model="editCity" OnValidSubmit="SaveCity">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <InputText @bind-Value="editCity.Name" class="long" />
+                    </div>
+                    <button class=" btn-submit" type="submit">@(IsCityEditMode ? "Edit City" : "Add New City")</button><br />
+                    <ValidationSummary />
+                </EditForm>
+                <br />
+                <button @onclick="() => ConfirmCityDelete(editCity)" class="btn-delete">Delete City🗑</button>
+            </div>
+        }
+
+        @if (showConfirmDelete)
+        {
+            <div class="confirmation-dialog">
+                <h1 class="confirmation-text">Are You Sure?</h1>
+                <div class="button-group">
+                    <button class="confirm-button" @onclick="DeleteClient">Yes</button>
+                    <button class="cancel-button" @onclick="CancelDelete">No</button>
+                </div>
+            </div>
+        }
+        @if (showConfirmDeleteCity)
+        {
+            <div class="confirmation-dialog">
+                <h1 class="confirmation-text">Are You Sure?</h1>
+                <div class="button-group">
+                    <button class="confirm-button" @onclick="DeleteCity">Yes</button>
+                    <button class="cancel-button" @onclick="CancelCityDelete">No</button>
+                </div>
+            </div>
+        }
+    </div>
+    @if (isShowPageMessage)
+    {
+        <div class="confirmation-dialog">
+            <h1 class="confirmation-text">@pageMessage</h1>
+            <div class="button-group">
+                <button class="confirm-button" @onclick="ClearMessage">Close</button>
+            </div>
+        </div>
+    }
+}
+
+
+
+@code {
+    private Client editClient = new Client();
+    private Client clientToDelete = new Client();
+
+    private List<Client>? clients;
+    private List<Client>? filteredclients;
+    private bool showConfirmDelete = false;
+
+
+    private List<City> cities;
+
+
+    private string filterFirstName = "";
+    private string filterLastName = "";
+    private string filterGender = "";
+    private int filterAge = 0;
+
+    private bool isShowPageMessage = false;
+    private string pageMessage = "";
+
+
+    private City editCity = new City();
+    private bool isShowCityModal = false;
+
+    int selectedCityId;
+    private bool IsCityEditMode => selectedCityId > 0;
+
+    private bool IsCityInUse => clients?.Any(client => client.City.Id == CityToDelete.Id) ?? false;
+
+
+    private City CityToDelete = new City();
+    private bool showConfirmDeleteCity = false;
+
+    private List<string> moreValidations = new List<string>();
+
+
+    private string btnText = "Add";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetDefaults();
+        selectedCityId = -1;
+    }
+    protected async Task SetDefaults()
+    {
+        clients = await ClientsService.Read();
+        filteredclients = clients;
+        cities = await CityService.Read();
+        moreValidations = new List<string>();
+    }
+    private void ClearMessage()
+    {
+        isShowPageMessage = false;
+        pageMessage = "";
+    }
+    private void ClearForm()
+    {
+        editClient = new Client();
+        selectedCityId = -1;
+    }
+    private async void BtnClick()
+    {
+        if (editClient.FirstName != "")
+        {
+            if (btnText == "Add")
+            {
+
+                moreValidations = new List<string>();
+                if (selectedCityId < 1) moreValidations.Add("City is required");
+                if (moreValidations.Count > 0)
+                {
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+               Save();
+            }
+            else
+            {
+                EditClient(editClient);
+                if(await ClientsService.Update(editClient))
+                { isShowPageMessage = true; pageMessage = "Client was Updated"; }
+                else
+                { isShowPageMessage = true; pageMessage = "Error Updating Client"; }
+                btnText = "Add";
+            }
+            editClient = new Client();
+            selectedCityId = -1;
+            await SetDefaults();
+            await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+        }
+    }
+    private async void Save()
+    {
+        foreach (var city in cities)
+        {
+            if (city.Id == selectedCityId) editClient.City = city;
+        }
+        if (await ClientsService.Create(editClient))
+        { isShowPageMessage = true; pageMessage = "Client was added"; }
+        else
+        { isShowPageMessage = true; pageMessage = "Error addind Client"; }
+        editClient = new Client();
+
+        await SetDefaults();
+        ClearForm();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+
+    }
+    private void ChangeisShowCityModal(bool ShowCity)
+    {
+        isShowCityModal = ShowCity;
+        if (IsCityEditMode)
+        {
+            foreach (var city in cities)
+                if (city.Id == selectedCityId)
+                { editCity = city; return; }
+
+        }
+        else
+        {
+            editCity = new City(-1, "");
+        }
+    }
+    private void EditClient(Client curClient)
+    {
+        editClient = new Client(curClient.Id, curClient.FirstName, curClient.LastName,
+        curClient.BirthYear, curClient.Gender, curClient.Email, curClient.City);
+
+        selectedCityId = editClient.City.Id;
+        btnText = "Update";
+    }
+    //מחיקה של לקוח
+
+    private void ConfirmDelete(Client curClient)
+    {
+        clientToDelete = curClient;
+        showConfirmDelete = true;
+    }
+    private void CancelDelete()
+    {
+        clientToDelete = new Client();
+        showConfirmDelete = false;
+    }
+    private async void DeleteClient()
+    {
+        if(await ClientsService.Delete(clientToDelete.Id))
+        { isShowPageMessage = true; pageMessage = "Client was Deleted"; }
+        else
+        { isShowPageMessage = true; pageMessage = "Error Deleting Client"; }
+        clientToDelete = new Client();
+        showConfirmDelete = false;
+        clients = await ClientsService.Read();
+        filteredclients = clients;
+
+        await SetDefaults();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+
+    }
+    // מחיקה של הישובים
+    private void ConfirmCityDelete(City curCity)
+    {
+        CityToDelete = curCity;
+        if (IsCityInUse)
+        {
+            isShowPageMessage = true; pageMessage = "Cannot delete  ";
+            CityToDelete = new City();
+            selectedCityId = -1;
+            isShowCityModal = false;
+        }
+        else
+        {
+            showConfirmDeleteCity = true;
+        }
+    }
+    private void CancelCityDelete()
+    {
+        CityToDelete = new City();
+        showConfirmDeleteCity = false;
+    }
+    private async void DeleteCity()
+    {
+            if (await CityService.Delete(selectedCityId))
+            { isShowPageMessage = true; pageMessage = "City was Deleted"; cities = await CityService.Read(); }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Deleting City"; }
+        showConfirmDeleteCity = false;
+        isShowCityModal = false;
+        selectedCityId = -1;
+
+    }
+    // פעולות פילטר
+    private void ClearFilter()
+    {
+        filterFirstName = "";
+        filterLastName = "";
+        filterGender = "";
+        filterAge = 0;
+
+        Filter();
+    }
+    private void OnFilterByFirstNameChanged(ChangeEventArgs e)
+    {
+        filterFirstName = e.Value.ToString();
+        Filter();
+
+    }
+    private void OnFilterByLastNameChanged(ChangeEventArgs e)
+    {
+        filterLastName = e.Value.ToString();
+        Filter();
+
+    }
+    private void OnFilterByGenderChanged(ChangeEventArgs e)
+    {
+        filterGender = e.Value.ToString();
+        Filter();
+
+    }
+    private void OnFilterByAgeChanged(ChangeEventArgs e)
+    {
+        filterAge = e.Value.ToString() != "" ? int.Parse(e.Value.ToString()) : 0;
+        Filter();
+
+    }
+    private void Filter()
+    {
+        filteredclients = new List<Client>();
+
+        foreach (Client client in clients)
+        {
+            if (IsFilterOK(client))
+            {
+                filteredclients.Add(client);
+            }
+        }
+    }
+    private bool IsFilterOK(Client c)
+    {
+        if (!c.FirstName.ToLower().StartsWith(filterFirstName.ToLower()))
+            return false;
+        if (!c.LastName.ToLower().StartsWith(filterLastName.ToLower()))
+            return false;
+        if (!c.Gender.ToLower().StartsWith(filterGender.ToLower()))
+            return false;
+        if (filterAge != 0 && c.Age != filterAge)
+            return false;
+
+        return true;
+    }
+    private async void SaveCity()
+    {
+        if (!IsCityEditMode)
+        {
+            // Create new city
+            if (await CityService.Create(editCity))
+            { isShowPageMessage = true; pageMessage = "City was added"; cities = await CityService.Read(); }
+            else
+            { isShowPageMessage = true; pageMessage = "Error addind City"; }
+            isShowCityModal = false;
+            selectedCityId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            if (await CityService.Update(editCity))
+            { isShowPageMessage = true; pageMessage = "City was Updated"; }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Updating City"; }
+            isShowCityModal = false;
+            selectedCityId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

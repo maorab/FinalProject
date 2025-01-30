@@ -1,0 +1,6 @@
+@Clinets.API_HostAddress = http://localhost:5071
+
+GET {{Clinets.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

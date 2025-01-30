@@ -1,0 +1,26 @@
+﻿@page "/"
+
+@using Model
+@using Clients.Blazor.Services
+
+@inject ClientsService ClientsService
+
+@if (clients != null)
+{
+    <div>
+        @clients.Count;
+    </div>
+}
+else
+{
+    <p>Loading...</p>
+}
+@code {
+    private List<Client> clients;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        clients = await ClientsService.Read();
+    }
+}

@@ -1,0 +1,384 @@
+﻿@page "/"
+
+@using Clients.Model
+@using Clients.Blazor.Services
+@inject ClientsService ClientsService
+@inject OrderService OrderService
+@inject ProductService ProductServices
+@inject FileService FileService
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations;
+<link href="OrderProductStyle.css" rel="stylesheet" />
+
+
+
+@if(curOrderStage == OrderStage.OrdersList)
+{
+@if(orders != null)
+{
+        <div class="order-container">
+            <div class="order-header">
+                <h1>Orders List</h1>
+            </div>
+
+            <div class="order-list">
+                <h2>Orders</h2>
+                <ul class="order-items">
+                    @foreach (Order curorder in orders)
+                    {
+                        <li class="order-item">
+                            <div class="order-details">
+                                <h5><strong>Date: @curorder.Date</strong></h5>
+                                <strong>Client:</strong> @curorder.Client.FirstName @curorder.Client.LastName [from - @curorder.Client.City]<br /><br />
+                                <small>Note:</small> @curorder.Note
+                            </div>
+                            <div class="order-actions">
+                                <button @onclick="() => EditOrder(curorder)" class="gov-edit-btn">✏️</button>
+                                <button @onclick="() => ConfirmDeleteOrder(curorder)" class="delete-btn">Delete 🗑</button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+                <h3>Total Orders: @orders.Count</h3>
+            </div>
+            <button class="next-btn" @onclick="() => SetCurStage(OrderStage.OrderDetails)">Next ⏩</button>
+        </div>
+
+}
+}
+
+
+    <EditForm Model="editOrder" OnInvalidSubmit="Save">
+        <DataAnnotationsValidator />
+    @if (curOrderStage == OrderStage.OrderDetails)
+    {
+        <div class="gov-box">
+            <h4 class="gov-title">@($"{(IsNewOrder ? "New Order" : "Edit Order")}")</h4>
+
+            <div class="gov-group">
+                <label for="orderDate" class="gov-label"><b>Date:</b></label>
+                <InputDate id="orderDate" @bind-Value="editOrder.Date" class="gov-input"></InputDate>
+            </div>
+
+            <div class="gov-group">
+                <label for="orderNote" class="gov-label"><b>Note:</b></label>
+                <InputText id="orderNote" @bind-Value="editOrder.Note" class="gov-input"></InputText>
+            </div>
+
+            <div class="gov-group">
+                <label for="clientSelect" class="gov-label"><b>Client:</b></label>
+                @if (clients != null)
+                {
+                    <InputSelect id="clientSelect" @bind-Value="selectedClientId" class="gov-select">
+                        <option value="-1">Select a client</option>
+                        @foreach (var client in clients)
+                        {
+                            <option value="@client.Id">@client.FirstName @client.LastName</option>
+                        }
+                    </InputSelect>
+                }
+            </div>
+
+            <div class="gov-actions">
+                <button type="button" @onclick="ClearForm" class="gov-btn-clear">Clear Form 🗑️</button>
+            </div>
+            <br />
+            <div class="gov-navigation">
+                <button class="gov-btn-prev" @onclick="() => SetCurStage(OrderStage.OrdersList)">⏪ Prev</button>
+                <button class="gov-btn-next" @onclick="() => SetCurStage(OrderStage.Products)">Next ⏩</button>
+            </div>
+            @for (int i = 0; i < moreValidations.Count; i++)
+            {
+                <ul class="gov-validation-list">
+                    <li class="gov-validation-msg">@moreValidations[i]</li>
+                </ul>
+            }
+        </div>
+    }
+
+
+    @if (curOrderStage == OrderStage.Products)
+        {
+            @if (products != null)
+            {
+                <div class="header">
+                    <h1>Product Cards</h1>
+                </div>
+                <div class="container">
+
+                    <div class="products-list">
+                        <ul>
+                            @foreach (Product curProduct in products)
+                            {
+                                OrderProduct curOrderProduct = FindFromProduct(curProduct);
+
+                                <li class="product-item">
+                                    <div class="product-details">
+                                        @if(curProduct.Picture?.Any() == true)
+                                        {
+                                           <img src="@($"{CurFolder4Display}/{curProduct.Picture}")" class="product-image" />
+                                        }
+                                        <h3><strong>@curProduct.Name</strong></h3>
+                                        <small>@curProduct.Category.Name</small><br /><br />
+                                        <strong>Company:</strong> @curProduct.Company.Name<br /><br />
+                                        <small>@curProduct.Description</small><br />
+                                        <small>Price:</small> @curProduct.Price<br />
+                                        <strong>In Stock:</strong> @curProduct.Count<br /><br />
+                                        @if (IsInBasket(curProduct))
+                                        {
+                                            <button type="button" class="buttonAdd">@curOrderProduct.Quantity Added</button>
+                                            <button type="button" class="delete-btn" @onclick="() => RemoveProductFromOrder(curProduct)">Remove One ❌</button>
+                                        }
+                                        @if (curProduct.Count > 0)
+                                        {
+                                           <button type="button" class="buttonAdd" @onclick="() => AddProductToOrder(curProduct)">@(IsInBasket(curProduct) ? "+1" : "Add To Order")</button>
+                                        }
+                                        else
+                                        {
+
+                                            <button type="button" class="buttonAdd">Out Of Stock</button>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    <button type="submit" @onclick="Save" class="btn btn-save">Save 💾</button>
+                    </div>
+                </div>
+            }
+            <button class="button" @onclick="() => SetCurStage(OrderStage.OrderDetails)">⏪ Prev</button>
+        }
+    </EditForm>
+
+@if (showConfirmDelete)
+{
+    <div class="confirmation-dialog">
+        <div class="dialog-box">
+            <p class="dialog-message">Are you sure you want to delete?</p>
+            <div class="dialog-actions">
+                <button class="btn btn-confirm" @onclick="DeleteOrder">Yes</button>
+                <button class="btn btn-cancel" @onclick="CancelDeleteOrder">No</button>
+            </div>
+        </div>
+    </div>
+
+}
+@if (isShowPageMessage)
+{
+
+
+
+    <div class="confirmation-dialog">
+        <div class="dialog-box">
+            <div class="dialog-header">
+                <h4 class="dialog-title">@pageMessage</h4>
+                <button type="button" class="close-btn" @onclick="ClearMessage">✖</button>
+            </div>
+        </div>
+    </div>
+
+}
+
+@code {
+
+    private List<Product>? productsInBasket = new List<Product>();
+
+    private List<Order>? orders;
+
+    private List<Product>? products;
+
+    private List<OrderProduct>? orderProducts = new List<OrderProduct>();
+
+    private List<Client>? clients;
+
+    private bool IsNewOrder => editOrder.Id < 1;
+    private OrderStage curOrderStage = OrderStage.OrdersList;
+    private enum OrderStage
+    {
+        OrdersList,
+        OrderDetails,
+        Products
+    }
+    private void SetCurStage(OrderStage to) { curOrderStage = to; }
+
+
+    private bool showConfirmDelete = false;
+    private bool isShowPageMessage = false;
+    private string pageMessage = "";
+
+
+    private Order editOrder = new Order();
+    private Order orderToDelete = new Order();
+    int selectedClientId;
+
+    private List<string> moreValidations = new List<string>();
+
+
+    public string CurFolder4Display => $"{FileService.Folder4Display}/Products";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetDefaults();
+        products = await ProductServices.Read();
+        selectedClientId = -1;
+    } 
+
+    private void ClearForm()
+    {
+        editOrder = new Order();
+        editOrder.Date = DateTime.Today;
+
+        selectedClientId = -1;
+    }
+
+    private void ClearMessage()
+    {
+        isShowPageMessage = false;
+        pageMessage = "";
+    }
+
+    protected async Task SetDefaults()
+    {
+        orders = await OrderService.Read();
+        clients = await ClientsService.Read();
+        moreValidations = new List<string>();
+    }
+
+    private OrderProduct FindFromProduct(Product curProduct)
+    {
+        foreach (OrderProduct orderProduct in orderProducts)
+            if (orderProduct.Product.Id == curProduct.Id)
+                return orderProduct;
+        return null;
+    }
+
+
+    // Save Order
+    private async void Save()
+    {
+        moreValidations = new List<string>();
+        if (selectedClientId < 1) moreValidations.Add("Client is required");
+        if (moreValidations.Count > 0)
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        foreach (var client in clients)
+        {
+            if (client.Id == selectedClientId) editOrder.Client = client;
+        }
+        if (editOrder.Id == 0)
+        {
+            if (await OrderService.Create(editOrder, orderProducts))
+            { isShowPageMessage = true; pageMessage = "✅ Order was Created"; }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Creating Order"; }
+        }
+        else
+        {
+            if (await OrderService.Update(editOrder, orderProducts))
+            { isShowPageMessage = true; pageMessage = "Order was Updated 🔄"; }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Updating Order"; }
+        }
+        await SetDefaults();
+        ClearForm();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+    }
+
+
+    // Delete Order
+    private void ConfirmDeleteOrder(Order curOrder)
+    {
+        orderToDelete = curOrder;
+        showConfirmDelete = true;
+    }
+
+    private void CancelDeleteOrder()
+    {
+        orderToDelete = new Order();
+        showConfirmDelete = false;
+    }
+
+    private async void DeleteOrder()
+    {
+        if (await OrderService.Delete(orderToDelete.Id))
+        { isShowPageMessage = true; pageMessage = "Order was Deleted"; }
+        else
+        { isShowPageMessage = true; pageMessage = "Error Deleting Order"; }
+        orderToDelete = new Order();
+        showConfirmDelete = false;
+        orders = await OrderService.Read();
+
+        await SetDefaults();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+    }
+
+
+    // Edit Order
+    private async void EditOrder(Order curOrder)
+    {
+        editOrder = new Order(curOrder.Id, curOrder.Date, curOrder.Client, curOrder.Note);
+        selectedClientId = editOrder.Client.Id;
+        orderProducts = await OrderService.ReadOrderProducts(editOrder);
+
+        productsInBasket = new List<Product>();
+        foreach (var orderProduct in orderProducts)
+            productsInBasket.Add(orderProduct.Product);
+
+        curOrderStage = OrderStage.OrderDetails;
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+    }
+
+    public bool IsInBasket(Product curProduct)
+    {
+        foreach (Product item in productsInBasket)
+            if (item.Id == curProduct.Id) return true;
+        return false;
+    }
+    private void UpdateOrderProduct(Product curProduct, int toAdd)
+    {
+        foreach (OrderProduct curOrderProduct in orderProducts)
+            if (curOrderProduct.Product.Id == curProduct.Id)
+            {
+                curOrderProduct.Quantity += toAdd;
+                if (curOrderProduct.Quantity == 0)
+                {
+                    productsInBasket.Remove(curProduct);
+                    orderProducts.Remove(curOrderProduct);
+                }
+                return;
+            }
+    }
+    private void AddProductToOrder(Product curProduct)
+    {
+        if(!IsInBasket(curProduct))
+        {
+            productsInBasket.Add(curProduct);
+            OrderProduct newOrderProduct = new OrderProduct(editOrder,curProduct,curProduct.Price,1);
+            orderProducts.Add(newOrderProduct);
+        }
+        else
+        {
+            UpdateOrderProduct(curProduct, 1);
+        }
+        UpdateProducsCount(curProduct, -1);
+    }
+    private void RemoveProductFromOrder(Product curProduct)
+    {
+        UpdateOrderProduct(curProduct, -1);
+        UpdateProducsCount(curProduct, 1);
+    }
+    private void UpdateProducsCount(Product curProduct, int toAdd)
+    {
+        foreach (Product product in products)
+            if (product.Id == curProduct.Id)
+            {
+                product.Count += toAdd;
+                return;
+            }
+    }
+}

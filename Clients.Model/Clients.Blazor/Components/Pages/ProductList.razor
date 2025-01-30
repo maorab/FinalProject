@@ -1,0 +1,535 @@
+﻿@page "/ProductList"
+
+@using Model
+@using Clients.Blazor.Services
+@inject CompanyService CompanyService
+@inject CategoryService CategoryService
+@inject ProductService ProductServices
+@inject FileService FileService
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations;
+<link href="ListStyle.css" rel="stylesheet" />
+@if (products != null)
+{
+    <div class="container">
+        <div class="header">
+            <h1>Product Management</h1>
+        </div>
+
+        <div class="products-list">
+            <h2>Product List</h2>
+            <ul>
+                @foreach (Product curproduct in products)
+                {
+                    <li class="product-item">
+                        <div class="product-details">
+                            <strong>Name:</strong> @curproduct.Name<br />
+                            <strong>Price:</strong> @curproduct.Price<br />
+                            <strong>Descripirion:</strong> @curproduct.Description<br />
+                            <strong>Amount:</strong> @curproduct.Count <br />
+                            <strong>Category:</strong> @curproduct.Category.Name<br />
+                            <strong>Company:</strong> @curproduct.Company.Name<br />
+                            <img src="@($"{CurFolder4Display}/{curproduct.Picture}")" class="product-image" />
+                        </div>
+                        <div class="product-actions">
+                            <button @onclick="() => EditProduct(curproduct)" class="btn-edit">Edit</button>
+                            <button @onclick="() => ConfirmDelete(curproduct)" class="btn-delete">Delete</button>
+                        </div>
+                    </li>
+                }
+            </ul>
+            <h3>Total Products: @products.Count</h3>
+            <h3>Total Companies: @companies.Count</h3>
+            <h3>Total Categories: @categories.Count</h3>
+        </div>
+
+        <div class="edit-form">
+            <h1>Edit/Add Product</h1>
+            <EditForm Model="editProduct" OnValidSubmit="BtnClick">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <label>Name:</label>
+                    <InputText @bind-Value="editProduct.Name" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Price:</label>
+                    <InputNumber @bind-Value="editProduct.Price" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Describion:</label>
+                    <InputText @bind-Value="editProduct.Description" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Amount:</label>
+                    <InputNumber @bind-Value="editProduct.Count" class="long" />
+                </div>
+                <div class="form-group">
+                    <label>Pictrue:</label>
+                    <InputFile OnChange="HandleSelectedFile" accept="image/*" />
+                    <img src="@($"{CurFolder4Display}/{editProduct.Picture}")" class="product-image" />
+                </div>
+                <div class="form-group">
+                    <label>Category:</label>
+                    <InputSelect @bind-Value="selectedCategoryId" class="long">
+                        <option value="-1" disabled selected>Select a category</option>
+                        @if (categories != null)
+                        {
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        }
+                    </InputSelect>
+                    </div>
+                    <div class="form-group">
+                        <label>Company:</label>
+                        <InputSelect @bind-Value="selectedCompanyId" class="long">
+                            <option value="-1" disabled selected>Select a company</option>
+                            @if (companies != null)
+                            {
+                                @foreach (var company in companies)
+                                {
+                                    <option value="@company.Id">@company.Name</option>
+                                }
+                            }
+                        </InputSelect>
+                </div>
+                <button type="submit" class="btn-submit">@btnText</button><br /><br />
+                @foreach (var company in companies) if (company.Id == selectedCompanyId) editProduct.Company = company;
+                @foreach (var category in categories) if (category.Id == selectedCategoryId) editProduct.Category = category;
+                <ValidationSummary />
+                @for (int i = 0; i < moreValidations.Count; i++)
+                {
+                    <ul class="validation-message-list">
+                        <li class="validation-message">@moreValidations[i]</li>
+                    </ul>
+                }
+            </EditForm>
+            <h1>Edit/Add Category</h1>
+            <button @onclick="() => ChangeisShowCategoryModal(true)">+</button><br />
+        </div>
+        @if (isShowCategoryModal)
+        {
+            <div class="edit-form">
+                <h3>@(IsCategoryEditMode ? "Edit Category" : "Add New Category") <button @onclick="() => ChangeisShowCategoryModal(false)">❌</button></h3>
+                <EditForm Model="editCategory" OnValidSubmit="SaveCategory">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <InputText @bind-Value="editCategory.Name" class="long" />
+                    </div>
+                    <button class=" btn-submit" type="submit">@(IsCategoryEditMode ? "Edit Category" : "Add New Category")</button><br />
+                    <ValidationSummary />
+                </EditForm>
+                <br />
+                <button @onclick="() => ConfirmCategoryDelete(editCategory)" class="btn-delete">Delete Category🗑</button>
+            </div>
+        }
+
+        <h1>Edit/Add Company</h1>
+        <button @onclick="() => ChangeisShowCompanyModal(true)">+</button><br />
+    </div>
+    @if (isShowCompanyModal)
+    {
+        <div class="edit-form">
+            <h3>@(IsCompanyEditMode ? "Edit Company" : "Add New Company") <button @onclick="() => ChangeisShowCompanyModal(false)">❌</button></h3>
+            <EditForm Model="editCompany" OnValidSubmit="SaveCompany">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <label>Name:</label>
+                    <InputText @bind-Value="editCompany.Name" class="long" />
+                </div>
+                <button class=" btn-submit" type="submit">@(IsCompanyEditMode ? "Edit Company" : "Add New Company")</button><br />
+                <ValidationSummary />
+            </EditForm>
+            <br />
+            <button @onclick="() => ConfirmCompanyDelete(editCompany)" class="btn-delete">Delete Company🗑</button>
+        </div>
+    }
+
+        @if (showConfirmDelete)
+        {
+            <div class="confirmation-dialog">
+                <h1 class="confirmation-text">Are You Sure?</h1>
+                <div class="button-group">
+                    <button class="confirm-button" @onclick="DeleteProduct">Yes</button>
+                    <button class="cancel-button" @onclick="CancelDelete">No</button>
+                </div>
+            </div>
+        }
+        @if (showConfirmDeleteCompany)
+        {
+            <div class="confirmation-dialog">
+                <h1 class="confirmation-text">Are You Sure?</h1>
+                <div class="button-group">
+                    <button class="confirm-button" @onclick="DeleteCompany">Yes</button>
+                    <button class="cancel-button" @onclick="CancelCompanyDelete">No</button>
+                </div>
+            </div>
+        }
+    @if (showConfirmDeleteCategory)
+    {
+        <div class="confirmation-dialog">
+            <h1 class="confirmation-text">Are You Sure?</h1>
+            <div class="button-group">
+                <button class="confirm-button" @onclick="DeleteCategory">Yes</button>
+                <button class="cancel-button" @onclick="CancelCategoryDelete">No</button>
+            </div>
+        </div>
+    }
+    @if (isShowPageMessage)
+    {
+        <div class="confirmation-dialog">
+            <h1 class="confirmation-text">@pageMessage</h1>
+            <div class="button-group">
+                <button class="confirm-button" @onclick="ClearMessage">Close</button>
+            </div>
+        </div>
+    }
+}
+
+
+
+@code {
+    public string CurFolder4Display => $"{FileService.Folder4Display}/Products";
+
+
+    public async Task<bool> SaveFileAsync(IBrowserFile file,
+
+    string? existingFileName = null)
+    {
+
+        try
+        {
+            // Call the file service to upload the file - returns the unique file name
+            string uniqueFileName = await FileService.SaveFileAsync(file, "Products");
+            if (uniqueFileName == "") return false;
+            editProduct.Picture = uniqueFileName;
+        }
+        catch (Exception ex)
+        {
+            // Handle any errors
+            pageMessage = $"Error uploading file: {ex.Message}";
+            isShowPageMessage = true;
+            return false;
+        }
+        return true;
+    }
+
+    private async Task HandleSelectedFile(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        //Validate the file type
+        if (!file.ContentType.StartsWith("image/"))
+        {
+            pageMessage = $"File must be an image";
+            isShowPageMessage = true;
+            return;
+        }
+        string curFile = editProduct.Picture;
+        if (file != null) { await SaveFileAsync(file, curFile); }
+    }
+    private Product editProduct = new Product();
+    private Product ProductToDelete = new Product();
+
+    private List<Product>? products;
+    private bool showConfirmDelete = false;
+
+
+    private List<Company>? companies;
+    private List<Category>? categories;
+
+    private bool isShowPageMessage = false;
+    private string pageMessage = "";
+
+
+    private Company editCompany = new Company();
+    private Category editCategory = new Category();
+    private bool isShowCompanyModal = false;
+    private bool isShowCategoryModal = false;
+
+    int selectedCompanyId;
+    private bool IsCompanyEditMode => selectedCompanyId > 0;
+
+    private bool IsCompanyInUse => products?.Any(product => product.Company.Id == CompanyToDelete.Id) ?? false;
+
+
+    private Company CompanyToDelete = new Company();
+    private bool showConfirmDeleteCompany = false;
+
+
+    int selectedCategoryId;
+    private bool IsCategoryEditMode => selectedCategoryId > 0;
+
+    private bool IsCategoryInUse => products?.Any(product => product.Category.Id == CategoryToDelete.Id) ?? false;
+
+
+    private Category CategoryToDelete = new Category();
+    private bool showConfirmDeleteCategory = false;
+
+    private List<string> moreValidations = new List<string>();
+
+
+    private string btnText = "Add";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SetDefaults();
+        selectedCompanyId = -1;
+        selectedCategoryId = -1;
+    }
+    protected async Task SetDefaults()
+    {
+        products = await ProductServices.Read();
+        companies = await CompanyService.Read();
+        categories = await CategoryService.Read();
+        moreValidations = new List<string>();
+    }
+    private void ClearMessage()
+    {
+        isShowPageMessage = false;
+        pageMessage = "";
+    }
+    private void ClearForm()
+    {
+        editProduct = new Product();
+        selectedCompanyId = -1;
+        selectedCategoryId = -1;
+    }
+    private async void BtnClick()
+    {
+        if (editProduct.Name != "")
+        {
+            if (btnText == "Add")
+            {
+
+                moreValidations = new List<string>();
+                if (selectedCategoryId < 1 || selectedCompanyId < 1) moreValidations.Add("Category or Company is required");
+                if (moreValidations.Count > 0)
+                {
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+                Save();
+            }
+            else
+            {
+                EditProduct(editProduct);
+                if (await ProductServices.Update(editProduct))
+                { isShowPageMessage = true; pageMessage = "Client was Updated"; }
+                else
+                { isShowPageMessage = true; pageMessage = "Error Updating Client"; }
+                btnText = "Add";
+            }
+            editProduct = new Product();
+            selectedCompanyId = -1;
+            selectedCategoryId = -1;
+            await SetDefaults();
+            await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+        }
+    }
+    private async void Save()
+    {
+        foreach (var company in companies)
+        {
+            if (company.Id == selectedCompanyId) editProduct.Company = company;
+        }
+        foreach (var category in categories)
+        {
+            if (category.Id == selectedCategoryId) editProduct.Category = category;
+        }
+        if (await ProductServices.Create(editProduct))
+        { isShowPageMessage = true; pageMessage = "Product was added"; }
+        else
+        { isShowPageMessage = true; pageMessage = "Error addind Client"; }
+        editProduct = new Product();
+
+        await SetDefaults();
+        ClearForm();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+
+    }
+    private void ChangeisShowCompanyModal(bool ShowCompany)
+    {
+        isShowCompanyModal = ShowCompany;
+        if (IsCompanyEditMode)
+        {
+            foreach (var company in companies)
+                if (company.Id == selectedCompanyId)
+                { editCompany = company; return; }
+
+        }
+        else
+        {
+            editCompany = new Company(-1, "");
+        }
+    }
+    private void ChangeisShowCategoryModal(bool ShowCategory)
+    {
+        isShowCategoryModal = ShowCategory;
+        if (IsCategoryEditMode)
+        {
+            foreach (var category in categories)
+                if (category.Id == selectedCategoryId)
+                { editCategory = category; return; }
+
+        }
+        else
+        {
+            editCategory = new Category(-1, "");
+        }
+    }
+    private void EditProduct(Product curProduct)
+    {
+        editProduct = new Product(curProduct.Id, curProduct.Name, curProduct.Category,
+        curProduct.Company, curProduct.Price, curProduct.Description,curProduct.Picture,curProduct.Count);
+
+        selectedCategoryId = editProduct.Category.Id;
+        selectedCompanyId = editProduct.Company.Id;
+        btnText = "Update";
+    }
+    //מחיקה של מוצר
+
+    private void ConfirmDelete(Product curProduct)
+    {
+        ProductToDelete = curProduct;
+        showConfirmDelete = true;
+    }
+    private void CancelDelete()
+    {
+        ProductToDelete = new Product();
+        showConfirmDelete = false;
+    }
+    private async void DeleteProduct()
+    {
+        if (await ProductServices.Delete(ProductToDelete.Id))
+        {
+            isShowPageMessage = true; pageMessage = "Product was Deleted";
+            if (!string.IsNullOrEmpty(ProductToDelete.Picture))
+                await FileService.DeleteFileAsync(ProductToDelete.Picture, "Products");
+        }
+        else
+        { isShowPageMessage = true; pageMessage = "Error Deleting Product"; }
+        ProductToDelete = new Product();
+        showConfirmDelete = false;
+        products = await ProductServices.Read();
+        await SetDefaults();
+
+        await InvokeAsync(StateHasChanged);//טוען מחדש את החלק של ה-html
+
+    }
+    // מחיקה של הישובים
+    private void ConfirmCompanyDelete(Company curCompany)
+    {
+        CompanyToDelete = curCompany;
+        if (IsCompanyInUse)
+        {
+            isShowPageMessage = true; pageMessage = "Cannot delete  ";
+            CompanyToDelete = new Company();
+            selectedCompanyId = -1;
+            isShowCompanyModal = false;
+        }
+        else
+        {
+            showConfirmDeleteCompany = true;
+        }
+    }
+    private void CancelCompanyDelete()
+    {
+        CompanyToDelete = new Company();
+        showConfirmDeleteCompany = false;
+    }
+    private async void DeleteCompany()
+    {
+        if (await CompanyService.Delete(selectedCompanyId))
+        { isShowPageMessage = true; pageMessage = "Company was Deleted"; companies = await CompanyService.Read(); }
+        else
+        { isShowPageMessage = true; pageMessage = "Error Deleting Company"; }
+        showConfirmDeleteCompany = false;
+        isShowCompanyModal = false;
+        selectedCompanyId = -1;
+    }
+
+    private void ConfirmCategoryDelete(Category curCategory)
+    {
+        CategoryToDelete = curCategory;
+        if (IsCategoryInUse)
+        {
+            isShowPageMessage = true; pageMessage = "Cannot delete  ";
+            CategoryToDelete = new Category();
+            selectedCategoryId = -1;
+            isShowCategoryModal = false;
+        }
+        else
+        {
+            showConfirmDeleteCategory = true;
+        }
+    }
+    private void CancelCategoryDelete()
+    {
+        CategoryToDelete = new Category();
+        showConfirmDeleteCategory = false;
+    }
+    private async void DeleteCategory()
+    {
+        if (await CategoryService.Delete(selectedCategoryId))
+        { isShowPageMessage = true; pageMessage = "Category was Deleted"; categories = await CategoryService.Read(); }
+        else
+        { isShowPageMessage = true; pageMessage = "Error Deleting Category"; }
+        showConfirmDeleteCategory = false;
+        isShowCategoryModal = false;
+        selectedCategoryId = -1;
+    }
+
+    private async void SaveCompany()
+    {
+        if (!IsCompanyEditMode)
+        {
+            // Create new city
+            if (await CompanyService.Create(editCompany))
+            { isShowPageMessage = true; pageMessage = "Company was added"; companies = await CompanyService.Read(); }
+            else
+            { isShowPageMessage = true; pageMessage = "Error addind Company"; }
+            isShowCompanyModal = false;
+            selectedCompanyId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            if (await CompanyService.Update(editCompany))
+            { isShowPageMessage = true; pageMessage = "Company was Updated"; }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Updating Company"; }
+            isShowCompanyModal = false;
+            selectedCompanyId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    private async void SaveCategory()
+    {
+        if (!IsCategoryEditMode)
+        {
+            // Create new city
+            if (await CategoryService.Create(editCategory))
+            { isShowPageMessage = true; pageMessage = "Category was added"; categories = await CategoryService.Read(); }
+            else
+            { isShowPageMessage = true; pageMessage = "Error addind Category"; }
+            isShowCategoryModal = false;
+            selectedCategoryId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            if (await CategoryService.Update(editCategory))
+            { isShowPageMessage = true; pageMessage = "Category was Updated"; }
+            else
+            { isShowPageMessage = true; pageMessage = "Error Updating Category"; }
+            isShowCategoryModal = false;
+            selectedCategoryId = -1;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+}
