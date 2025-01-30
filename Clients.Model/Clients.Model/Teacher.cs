@@ -30,6 +30,9 @@ namespace Clients.Model
         //[RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Email must contain a valid domain")]
         public string? Email { get; set; }
         //
+        /// <summary>
+        /// adding feature 2
+        /// </summary>
 
         //[Required(ErrorMessage = "Gender is required")]
         //[RegularExpression("^(Male|Female|Other|Prefer not to say)$", ErrorMessage = "Gender must be either 'Male', 'Female', 'Other', or 'Prefer not to say'")]
