@@ -29,7 +29,7 @@ namespace Clients.Model
         //[EmailAddress(ErrorMessage = "Invalid email format")]
         //[RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", ErrorMessage = "Email must contain a valid domain")]
         public string? Email { get; set; }
-
+        //
 
         //[Required(ErrorMessage = "Gender is required")]
         //[RegularExpression("^(Male|Female|Other|Prefer not to say)$", ErrorMessage = "Gender must be either 'Male', 'Female', 'Other', or 'Prefer not to say'")]
